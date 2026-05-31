@@ -52,8 +52,8 @@ nav button:hover:not(.active){color:var(--mid);}
 /* ── FIELDS ── */
 .field{display:flex;flex-direction:column;gap:.3rem;margin-bottom:.75rem;}
 label.lbl{font-size:.75rem;font-weight:600;color:var(--light);text-transform:uppercase;letter-spacing:.06em;}
-input[type=text]{height:40px;padding:0 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem;outline:none;width:100%;}
-input[type=text]:focus{border-color:var(--orange);}
+input[type=text],input[type=date]{height:40px;padding:0 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem;outline:none;width:100%;}
+input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;}
 
@@ -193,9 +193,13 @@ input[type=text]:focus{border-color:var(--orange);}
       <div class="field"><label class="lbl">Conducteur de travaux</label><input type="text" id="conducteur" placeholder="ex: GONCALVES Patrice"></div>
     </div>
     <div class="grid3">
-      <div class="field"><label class="lbl">Semaine (libellé)</label><input type="text" id="semaine" placeholder="ex: du 25 au 29 mai 2026"></div>
+      <div class="field"><label class="lbl">Lundi de la semaine</label><input type="date" id="lundi-picker" onchange="onLundiChange()"></div>
       <div class="field"><label class="lbl">H. matin (défaut)</label><input type="text" id="defHM" value="7h - 12h"></div>
       <div class="field"><label class="lbl">H. après-midi (défaut)</label><input type="text" id="defHAM" value="13h - 16h"></div>
+    </div>
+    <div class="field" style="margin-top:.5rem">
+      <label class="lbl">Libellé de la semaine (auto, modifiable)</label>
+      <input type="text" id="semaine" placeholder="Choisis d'abord le lundi ci-dessus">
     </div>
     <div class="actions">
       <button class="btn btn-outline" onclick="applyDefaults()">↺ Appliquer par défaut</button>
@@ -386,7 +390,7 @@ function buildDays() {
       <div class="day-head">
         <span class="day-name">${jour}</span>
         <input type="text" class="day-date-inp d-date" placeholder="JJ/MM">
-        <div class="chk-wrap"><input type="checkbox" class="d-igd" id="igd${i}" ${i<5?'checked':''}><label for="igd${i}">IGD</label></div>
+        <div class="chk-wrap"><input type="checkbox" class="d-igd" id="igd${i}"><label for="igd${i}">IGD</label></div>
         <div class="chk-wrap"><input type="checkbox" class="d-intemp" id="intemp${i}"><label for="intemp${i}">Intempérie</label></div>
         <div class="day-total-wrap">
           <label class="lbl">Total</label>
@@ -418,6 +422,39 @@ function buildDays() {
     totalInp.addEventListener('dblclick', () => { totalInp.dataset.manual=''; refreshDayTotal(i); });
     refreshDayTotal(i);
   });
+}
+
+const MOIS_NOMS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+
+function onLundiChange() {
+  const val = document.getElementById('lundi-picker').value; // YYYY-MM-DD
+  if (!val) return;
+  const [y, m, d] = val.split('-').map(Number);
+  const lundi = new Date(y, m-1, d);
+  // Remplir les 7 dates (lundi..dimanche)
+  const cards = document.querySelectorAll('.day-card');
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(lundi);
+    day.setDate(lundi.getDate() + i);
+    const jj = String(day.getDate()).padStart(2,'0');
+    const mm = String(day.getMonth()+1).padStart(2,'0');
+    const dateInp = cards[i]?.querySelector('.d-date');
+    if (dateInp) dateInp.value = `${jj}/${mm}`;
+  }
+  // Libellé "du 18 au 22 mai 2026" (lundi -> vendredi)
+  const vendredi = new Date(lundi); vendredi.setDate(lundi.getDate()+4);
+  const jLun = lundi.getDate(), jVen = vendredi.getDate();
+  const moisLun = MOIS_NOMS[lundi.getMonth()], moisVen = MOIS_NOMS[vendredi.getMonth()];
+  const anLun = lundi.getFullYear(), anVen = vendredi.getFullYear();
+  let libelle;
+  if (moisLun === moisVen && anLun === anVen) {
+    libelle = `du ${jLun} au ${jVen} ${moisVen} ${anVen}`;
+  } else if (anLun === anVen) {
+    libelle = `du ${jLun} ${moisLun} au ${jVen} ${moisVen} ${anVen}`;
+  } else {
+    libelle = `du ${jLun} ${moisLun} ${anLun} au ${jVen} ${moisVen} ${anVen}`;
+  }
+  document.getElementById('semaine').value = libelle;
 }
 
 function applyDefaults() {
