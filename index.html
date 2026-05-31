@@ -271,7 +271,7 @@ input[type=text]:focus{border-color:var(--orange);}
 <div class="toast" id="toast"></div>
 
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbw8QjoL64EIEQkhBz-FJB70EIoSpcuUn6mccKfI8pBb2fhm5qxhMHSvLEMScfNpBNnPFQ/exec';
+const API = 'https://script.google.com/macros/s/AKfycbz9L4d5PBRt2jGf7ktLy1XW3JkgzJThVQY2kF8fp9dgNRmyi1sBnYUbC-JvDYIdxdKI8Q/exec';
 const BASE_MIN = 39 * 60;
 const JOURS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 const DEF_HM  = ['7h - 12h','7h - 12h','7h - 12h','7h - 12h','7h - 12h','',''];
@@ -290,7 +290,7 @@ async function doLogin() {
   if (!login || !password) { showErr('Remplis tous les champs'); return; }
   document.getElementById('login-error').textContent = '';
   try {
-    const res = await apiPost({ action: 'login', login, password });
+    const res = await apiGet({ action: "login", login, password });
     if (!res.ok) { showErr(res.error || 'Identifiants incorrects'); return; }
     token = res.token; userNom = res.nom;
     localStorage.setItem('pv_token', token);
@@ -603,7 +603,7 @@ async function generateAndSave() {
   showToast('Enregistrement...','info');
   try {
     const fiche = { semaine, jours: days };
-    const res = await apiPost({ action: 'saveFiche', token, fiche });
+    const res = await apiGet({ action: "saveFiche", token, fiche: encodeURIComponent(JSON.stringify(fiche)) });
     if (res.ok) showToast('✓ PDF téléchargé + fiche enregistrée !');
     else showToast('PDF ok, mais erreur sauvegarde : ' + res.error, 'error');
   } catch(e) { showToast('PDF ok, erreur réseau : ' + e.message, 'error'); }
@@ -699,19 +699,26 @@ async function loadRecap() {
 }
 
 // ══════════════════════════════════════════
-// API HELPERS
+// API HELPERS — JSONP (contourne CORS)
 // ══════════════════════════════════════════
-async function apiPost(data) {
-  const res = await fetch(API, {
-    method:'POST', body: JSON.stringify(data),
-    headers:{'Content-Type':'application/json'}
+function apiGet(params) {
+  return new Promise((resolve, reject) => {
+    const cbName = '_cb_' + Math.random().toString(36).slice(2);
+    params.callback = cbName;
+    const qs = Object.entries(params).map(([k,v])=>`${k}=${encodeURIComponent(v==null?'':v)}`).join('&');
+    const script = document.createElement('script');
+    let done = false;
+    window[cbName] = (data) => {
+      done = true;
+      delete window[cbName];
+      try { document.head.removeChild(script); } catch(e) {}
+      resolve(data);
+    };
+    script.src = `${API}?${qs}`;
+    script.onerror = () => { done=true; reject(new Error('Erreur réseau')); };
+    document.head.appendChild(script);
+    setTimeout(() => { if(!done){ done=true; reject(new Error('Timeout')); } }, 12000);
   });
-  return res.json();
-}
-async function apiGet(params) {
-  const qs = Object.entries(params).map(([k,v])=>`${k}=${encodeURIComponent(v||'')}`).join('&');
-  const res = await fetch(`${API}?${qs}`);
-  return res.json();
 }
 
 // ══════════════════════════════════════════
