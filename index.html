@@ -9,7 +9,7 @@
 :root{
   --orange:#E8630A;--orange-light:#FFF3EB;--dark:#1A1A18;--mid:#4A4A47;
   --light:#8A8A86;--border:#E2E0D8;--bg:#F8F7F4;--white:#FFFFFF;
-  --green:#2D7A3A;--green-light:#EAF4EC;--red:#C0392B;
+  --green:#2D7A3A;--green-light:#EAF4EC;--red:#C0392B;--blue:#2C5F8A;--blue-light:#EAF1F7;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--dark);min-height:100vh;}
@@ -76,6 +76,16 @@ input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
 .slot input{height:32px;font-size:.82rem;padding:0 8px;border:1.5px solid var(--border);border-radius:6px;outline:none;}
 .slot input:focus{border-color:var(--orange);}
 
+/* ── GUEST (intérimaire) ── */
+.guest-card{border-color:var(--blue);}
+.guest-card .card-title{color:var(--blue);}
+.guest-slot{display:grid;grid-template-columns:85px 1fr 1fr 70px;gap:7px;align-items:center;margin-bottom:.4rem;}
+.guest-slot .g-day{font-size:.8rem;font-weight:700;color:var(--blue);}
+.guest-slot input{height:32px;font-size:.82rem;padding:0 8px;border:1.5px solid var(--border);border-radius:6px;outline:none;}
+.guest-slot input:focus{border-color:var(--blue);}
+.guest-slot .g-total{text-align:center;font-weight:700;color:var(--blue);background:var(--blue-light);border:none;}
+.guest-hint{font-size:.78rem;color:var(--light);margin-bottom:.75rem;}
+
 /* ── WEEK TOTAL ── */
 .week-bar{background:var(--dark);color:white;border-radius:10px;padding:.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between;margin:1rem 0;}
 .week-bar .lbl{font-size:.82rem;text-transform:uppercase;letter-spacing:.08em;color:#bbb;}
@@ -95,7 +105,9 @@ input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
 .btn-dark{background:var(--dark);color:white;}.btn-dark:hover{background:#333;}
 .btn-outline{background:none;border:1.5px solid var(--border);color:var(--mid);}.btn-outline:hover{border-color:var(--orange);color:var(--orange);}
 .btn-green{background:var(--green);color:white;}.btn-green:hover{background:#236130;}
+.btn-blue{background:var(--blue);color:white;}.btn-blue:hover{background:#234C70;}
 .actions{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1.25rem;}
+.draft-status{font-size:.75rem;color:var(--light);margin-top:.5rem;}
 
 /* ── AGENDA / FICHES LIST ── */
 .fiche-item{background:var(--white);border:1.5px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:.6rem;display:flex;align-items:center;gap:12px;}
@@ -139,6 +151,7 @@ input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
   .grid2,.grid3,.stats-grid{grid-template-columns:1fr;}
   .slot{grid-template-columns:55px 1fr;}
   .slot>*:nth-child(3),.slot>*:nth-child(4){grid-column:2;}
+  .guest-slot{grid-template-columns:70px 1fr 1fr 60px;}
   nav button{padding:.75rem 1rem;font-size:.82rem;}
 }
 </style>
@@ -194,8 +207,8 @@ input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
     </div>
     <div class="grid3">
       <div class="field"><label class="lbl">Lundi de la semaine</label><input type="date" id="lundi-picker" onchange="onLundiChange()"></div>
-      <div class="field"><label class="lbl">H. matin (défaut)</label><input type="text" id="defHM" value="7h - 12h"></div>
-      <div class="field"><label class="lbl">H. après-midi (défaut)</label><input type="text" id="defHAM" value="13h - 16h"></div>
+      <div class="field"><label class="lbl">H. matin (défaut)</label><input type="text" id="defHM" value="7h30 - 12h"></div>
+      <div class="field"><label class="lbl">H. après-midi (défaut)</label><input type="text" id="defHAM" value="13h - 16h30"></div>
     </div>
     <div class="field" style="margin-top:.5rem">
       <label class="lbl">Libellé de la semaine (auto, modifiable)</label>
@@ -215,17 +228,37 @@ input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
     </div>
   </div>
 
+  <!-- COLLABORATEUR INVITÉ (intérimaire) -->
+  <div class="card" id="guest-toggle-card">
+    <button class="btn btn-blue" onclick="toggleGuest()" id="btn-guest-toggle">➕ Ajouter un collaborateur (intérimaire)</button>
+  </div>
+
+  <div class="card guest-card" id="guest-card" style="display:none">
+    <div class="card-title">👷 Collaborateur invité</div>
+    <p class="guest-hint">Sa fiche reprend automatiquement tes dates, chantiers, chefs, IGD et intempéries. Seuls ses horaires sont à ajuster ci-dessous (pré-remplis avec les tiens).</p>
+    <div class="grid2">
+      <div class="field"><label class="lbl">Nom - Prénom</label><input type="text" id="guest-nom" placeholder="ex: DUPONT Jean"></div>
+      <div class="field"><label class="lbl">Date de signature</label><input type="text" id="guest-date-sig" placeholder="ex: 22/05/2026"></div>
+    </div>
+    <div id="guest-days"></div>
+    <div class="field" style="margin-top:.75rem"><label class="lbl">Sa signature</label></div>
+    <div id="guest-sig-container"></div>
+    <div class="sig-actions"><button class="btn-clear" onclick="guestSig && guestSig.clear()">Effacer</button></div>
+  </div>
+
   <div class="card" id="sig-card">
     <div class="card-title">✍️ Ma signature</div>
     <div class="field"><label class="lbl">Date de signature</label><input type="text" id="date-sig" placeholder="ex: 22/05/2026"></div>
     <div id="sig-wrap-container"></div>
-    <div class="sig-actions"><button class="btn-clear" onclick="clearMySig()">Effacer</button></div>
+    <div class="sig-actions"><button class="btn-clear" onclick="mySig && mySig.clear()">Effacer</button></div>
   </div>
 
   <div class="actions">
+    <button class="btn btn-green" onclick="saveDraft()">💾 Enregistrer le brouillon</button>
     <button class="btn btn-orange" onclick="generateAndSave()">⬇ Générer PDF + Enregistrer</button>
     <button class="btn btn-dark" onclick="generateOnly()">⬇ PDF seulement</button>
   </div>
+  <div class="draft-status" id="draft-status"></div>
 </div>
 
 <!-- AGENDA -->
@@ -275,7 +308,7 @@ input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
 <div class="toast" id="toast"></div>
 
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbzluOLcyqu1YuAJdhMIX7jrDr6kGdBCcEeIqKUiht0EtJTZgJ0F0qGerOwXUpWD0zGN1A/exec';
+const API = 'https://script.google.com/macros/s/AKfycbxwgtbsW3mnS_9pgbqsi_gMaCSGsSn3maUsu6XLn5ls29pB8fji8VUwfifpOQiM0o9wKg/exec';
 const BASE_MIN = 39 * 60;
 const JOURS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 const DEF_HM  = ['7h30 - 12h','7h30 - 12h','7h30 - 12h','7h30 - 12h','7h30 - 12h','',''];
@@ -283,7 +316,8 @@ const DEF_HAM = ['13h - 16h30','13h - 16h30','13h - 16h30','13h - 16h30','13h - 
 
 let token = localStorage.getItem('pv_token') || '';
 let userNom = localStorage.getItem('pv_nom') || '';
-let sigCanvas = null, sigCtx = null, sigHasData = false, sigDrawing = false;
+let mySig = null, guestSig = null;
+let guestEnabled = false;
 
 // ══════════════════════════════════════════
 // AUTH
@@ -318,8 +352,13 @@ function showApp() {
   document.getElementById('main-nav').style.display = 'flex';
   document.getElementById('user-info').style.display = 'flex';
   document.getElementById('user-nom').textContent = userNom;
-  buildDays(); buildSigCanvas(); applyDefaults();
+  buildDays();
+  mySig = makeSigPad(document.getElementById('sig-wrap-container'));
+  buildGuestDays();
+  guestSig = makeSigPad(document.getElementById('guest-sig-container'));
+  applyDefaults();
   showTab('generateur');
+  loadDraft(); // recharge le brouillon de la semaine en cours s'il existe
 }
 
 // ══════════════════════════════════════════
@@ -431,7 +470,6 @@ function onLundiChange() {
   if (!val) return;
   const [y, m, d] = val.split('-').map(Number);
   const lundi = new Date(y, m-1, d);
-  // Remplir les 7 dates (lundi..dimanche)
   const cards = document.querySelectorAll('.day-card');
   for (let i = 0; i < 7; i++) {
     const day = new Date(lundi);
@@ -441,7 +479,6 @@ function onLundiChange() {
     const dateInp = cards[i]?.querySelector('.d-date');
     if (dateInp) dateInp.value = `${jj}/${mm}`;
   }
-  // Libellé "du 18 au 22 mai 2026" (lundi -> vendredi)
   const vendredi = new Date(lundi); vendredi.setDate(lundi.getDate()+4);
   const jLun = lundi.getDate(), jVen = vendredi.getDate();
   const moisLun = MOIS_NOMS[lundi.getMonth()], moisVen = MOIS_NOMS[vendredi.getMonth()];
@@ -460,8 +497,6 @@ function onLundiChange() {
 function applyDefaults() {
   const chantier = document.getElementById('chantier').value;
   const chef = document.getElementById('chef').value;
-  const hm = document.getElementById('defHM').value;
-  const ham = document.getElementById('defHAM').value;
   document.querySelectorAll('.day-card').forEach((card, i) => {
     if (i < 5) {
       if (chantier) { card.querySelector('.s-chantier-m').value = chantier; card.querySelector('.s-chantier-a').value = ''; }
@@ -498,28 +533,91 @@ function getDayData() {
 }
 
 // ══════════════════════════════════════════
-// SIGNATURE
+// COLLABORATEUR INVITÉ (intérimaire)
 // ══════════════════════════════════════════
-function buildSigCanvas() {
-  const container = document.getElementById('sig-wrap-container');
+function toggleGuest() {
+  guestEnabled = !guestEnabled;
+  document.getElementById('guest-card').style.display = guestEnabled ? 'block' : 'none';
+  document.getElementById('btn-guest-toggle').textContent =
+    guestEnabled ? '➖ Retirer le collaborateur' : '➕ Ajouter un collaborateur (intérimaire)';
+  if (guestEnabled) syncGuestHoursFromMine();
+}
+
+function buildGuestDays() {
+  const c = document.getElementById('guest-days'); c.innerHTML = '';
+  const head = document.createElement('div'); head.className = 'guest-slot';
+  head.innerHTML = `<span class="slot-lbl">Jour</span><span class="slot-lbl">H. matin</span><span class="slot-lbl">H. après-midi</span><span class="slot-lbl">Total</span>`;
+  c.appendChild(head);
+  JOURS.forEach((jour, i) => {
+    const row = document.createElement('div'); row.className = 'guest-slot'; row.dataset.idx = i;
+    row.innerHTML = `
+      <span class="g-day">${jour}</span>
+      <input type="text" class="g-hm" placeholder="${DEF_HM[i]||'—'}">
+      <input type="text" class="g-ham" placeholder="${DEF_HAM[i]||'—'}">
+      <input type="text" class="g-total" readonly tabindex="-1" value="0h">`;
+    c.appendChild(row);
+    const upd = () => {
+      const t = parseRange(row.querySelector('.g-hm').value) + parseRange(row.querySelector('.g-ham').value);
+      row.querySelector('.g-total').value = fmtH(t);
+    };
+    row.querySelector('.g-hm').addEventListener('input', upd);
+    row.querySelector('.g-ham').addEventListener('input', upd);
+  });
+}
+
+function syncGuestHoursFromMine() {
+  document.querySelectorAll('#guest-days .guest-slot[data-idx]').forEach(row => {
+    const i = parseInt(row.dataset.idx);
+    const card = document.querySelector(`.day-card[data-idx="${i}"]`);
+    if (!card) return;
+    if (!row.querySelector('.g-hm').value) row.querySelector('.g-hm').value = card.querySelector('.s-hm').value;
+    if (!row.querySelector('.g-ham').value) row.querySelector('.g-ham').value = card.querySelector('.s-ham').value;
+    const t = parseRange(row.querySelector('.g-hm').value) + parseRange(row.querySelector('.g-ham').value);
+    row.querySelector('.g-total').value = fmtH(t);
+  });
+}
+
+function getGuestDayData(myDays) {
+  // Reprend dates, chantiers, chefs, IGD, intempéries de ma fiche ;
+  // applique les horaires propres de l'invité.
+  return Array.from(document.querySelectorAll('#guest-days .guest-slot[data-idx]')).map(row => {
+    const i = parseInt(row.dataset.idx);
+    const hm = row.querySelector('.g-hm').value;
+    const ham = row.querySelector('.g-ham').value;
+    const totalMins = parseRange(hm) + parseRange(ham);
+    const base = myDays[i] || {};
+    return {
+      date: base.date, chantier: base.chantier, chef: base.chef,
+      hm, ham,
+      igd: base.igd, intemperie: base.intemperie,
+      total: fmtH(totalMins), totalMins,
+    };
+  });
+}
+
+// ══════════════════════════════════════════
+// SIGNATURE (pad réutilisable : moi + invité)
+// ══════════════════════════════════════════
+function makeSigPad(container) {
+  container.innerHTML = '';
   const wrap = document.createElement('div'); wrap.className = 'sig-wrap';
   const hint = document.createElement('div'); hint.className = 'sig-hint'; hint.textContent = 'Signez ici avec le doigt ou la souris';
   const cv = document.createElement('canvas'); cv.className = 'sig-canvas';
   wrap.appendChild(hint); wrap.appendChild(cv);
   container.appendChild(wrap);
-  sigCanvas = cv;
+  let ctx = null, hasData = false, drawing = false;
 
   function ensureSize() {
     const r = cv.getBoundingClientRect(); if (r.width === 0) return;
     const dpr = window.devicePixelRatio || 1;
     const tw = Math.round(r.width*dpr), th = Math.round(r.height*dpr);
     if (cv.width===tw && cv.height===th) return;
-    let prev = null; if (sigHasData) { try { prev = cv.toDataURL(); } catch(e){} }
+    let prev = null; if (hasData) { try { prev = cv.toDataURL(); } catch(e){} }
     cv.width = tw; cv.height = th;
-    sigCtx = cv.getContext('2d');
-    sigCtx.setTransform(dpr,0,0,dpr,0,0);
-    sigCtx.lineWidth=2.2; sigCtx.lineCap='round'; sigCtx.lineJoin='round'; sigCtx.strokeStyle='#1A1A18';
-    if (prev) { const img=new Image(); img.onload=()=>sigCtx.drawImage(img,0,0,r.width,r.height); img.src=prev; }
+    ctx = cv.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.lineWidth=2.2; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#1A1A18';
+    if (prev) { const img=new Image(); img.onload=()=>ctx.drawImage(img,0,0,r.width,r.height); img.src=prev; }
   }
   function getPos(e) {
     const r = cv.getBoundingClientRect();
@@ -527,28 +625,33 @@ function buildSigCanvas() {
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
     return { x: cx-r.left, y: cy-r.top };
   }
-  function start(e) { e.preventDefault(); ensureSize(); sigDrawing=true; const p=getPos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x,p.y); hint.style.opacity='0'; }
-  function draw(e) { e.preventDefault(); if(!sigDrawing) return; const p=getPos(e); sigCtx.lineTo(p.x,p.y); sigCtx.stroke(); sigCtx.beginPath(); sigCtx.moveTo(p.x,p.y); sigHasData=true; }
-  function stop() { sigDrawing=false; }
+  function start(e) { e.preventDefault(); ensureSize(); drawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); hint.style.opacity='0'; }
+  function draw(e) { e.preventDefault(); if(!drawing) return; const p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(p.x,p.y); hasData=true; }
+  function stop() { drawing=false; }
   cv.addEventListener('pointerdown',start); cv.addEventListener('pointermove',draw); window.addEventListener('pointerup',stop);
   requestAnimationFrame(()=>ensureSize()); setTimeout(()=>ensureSize(),150);
-}
 
-function clearMySig() {
-  sigHasData = false;
-  const dpr = window.devicePixelRatio||1;
-  sigCtx.save(); sigCtx.setTransform(1,0,0,1,0,0); sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); sigCtx.restore();
-  sigCtx.lineWidth=2.2; sigCtx.lineCap='round'; sigCtx.lineJoin='round'; sigCtx.strokeStyle='#1A1A18';
-  document.querySelector('.sig-hint').style.opacity='1';
+  return {
+    hasData: () => hasData,
+    dataURL: () => cv.toDataURL('image/png'),
+    clear: () => {
+      hasData = false;
+      if (!ctx) return;
+      ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.restore();
+      ctx.lineWidth=2.2; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#1A1A18';
+      hint.style.opacity='1';
+    },
+    refreshSize: ensureSize,
+  };
 }
 
 // ══════════════════════════════════════════
-// PDF GENERATION
+// PDF GENERATION (paramétré par nom + jours + signature)
 // ══════════════════════════════════════════
-function buildPDF(days, semaine, conducteur, sigURL, dateCollab) {
+function buildPDF(nom, days, semaine, conducteur, sigURL, dateCollab) {
   const {jsPDF} = window.jspdf;
   const doc = new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
-  const W=297, H=210, ml=8, mr=8, cw=W-ml-mr;
+  const W=297, ml=8, mr=8, cw=W-ml-mr;
 
   doc.setFont('helvetica','bold'); doc.setFontSize(14);
   doc.text("RELEVÉ D'HEURES HEBDOMADAIRES", W/2, 14, {align:'center'});
@@ -557,7 +660,7 @@ function buildPDF(days, semaine, conducteur, sigURL, dateCollab) {
 
   doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
   doc.text('Collaborateur (Nom - Prénom) :', ml, 28);
-  doc.setFont('helvetica','normal'); doc.text(userNom||'', ml+52, 28); doc.line(ml+51,29,ml+110,29);
+  doc.setFont('helvetica','normal'); doc.text(nom||'', ml+52, 28); doc.line(ml+51,29,ml+110,29);
   doc.setFont('helvetica','bold'); doc.text('Semaine :', ml+115, 28);
   doc.setFont('helvetica','normal'); doc.text(semaine||'', ml+132, 28); doc.line(ml+131,29,W-mr,29);
 
@@ -603,7 +706,7 @@ function buildPDF(days, semaine, conducteur, sigURL, dateCollab) {
   // Sig collab
   doc.setFont('helvetica','bold'); doc.setFontSize(9);
   doc.text('Signature du collaborateur - Nom :', ml, y);
-  doc.setFont('helvetica','normal'); doc.text(userNom||'', ml+54, y);
+  doc.setFont('helvetica','normal'); doc.text(nom||'', ml+54, y);
   doc.setFont('helvetica','bold'); doc.text('Date :', W-mr-40, y);
   doc.setFont('helvetica','normal'); doc.text(dateCollab||'', W-mr-29, y); doc.line(W-mr-30,y+1,W-mr,y+1);
   doc.setDrawColor(150,150,150); doc.setFillColor(245,245,245); doc.rect(ml+50,y+2,70,18,'FD');
@@ -622,39 +725,156 @@ function buildPDF(days, semaine, conducteur, sigURL, dateCollab) {
   return doc;
 }
 
-async function generateAndSave() {
+function safeName(s) {
+  return (s||'fiche').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_-]/g,'');
+}
+
+function buildAllPDFs() {
   const days = getDayData();
   const semaine = document.getElementById('semaine').value;
   const conducteur = document.getElementById('conducteur').value;
-  const dateCollab = document.getElementById('date-sig').value;
-  const sigURL = sigHasData ? sigCanvas.toDataURL('image/png') : null;
+  if (!semaine) { showToast('Renseigne le libellé de la semaine !','error'); return null; }
 
-  if (!semaine) { showToast('Renseigne le libellé de la semaine !','error'); return; }
+  // Ma fiche
+  const myDoc = buildPDF(userNom, days, semaine, conducteur,
+    mySig.hasData() ? mySig.dataURL() : null,
+    document.getElementById('date-sig').value);
+  myDoc.save(`${safeName(userNom)}_${safeName(semaine).slice(0,20)}.pdf`);
 
-  // Generate PDF
-  const doc = buildPDF(days, semaine, conducteur, sigURL, dateCollab);
-  const safe = s => (s||'fiche').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_-]/g,'');
-  doc.save(`${safe(userNom)}_${safe(semaine).slice(0,20)}.pdf`);
+  // Fiche invité
+  let guest = null;
+  if (guestEnabled) {
+    const guestNom = document.getElementById('guest-nom').value.trim();
+    if (!guestNom) { showToast('Renseigne le nom du collaborateur invité !','error'); return null; }
+    const guestDays = getGuestDayData(days);
+    const gDoc = buildPDF(guestNom, guestDays, semaine, conducteur,
+      guestSig.hasData() ? guestSig.dataURL() : null,
+      document.getElementById('guest-date-sig').value);
+    gDoc.save(`${safeName(guestNom)}_${safeName(semaine).slice(0,20)}.pdf`);
+    guest = { nom: guestNom, days: guestDays };
+  }
+  return { days, semaine, guest };
+}
 
-  // Save to Sheets
+async function generateAndSave() {
+  const out = buildAllPDFs();
+  if (!out) return;
   showToast('Enregistrement...','info');
   try {
-    const fiche = { semaine, jours: days };
-    const res = await apiGet({ action: "saveFiche", token, fiche: encodeURIComponent(JSON.stringify(fiche)) });
-    if (res.ok) showToast('✓ PDF téléchargé + fiche enregistrée !');
-    else showToast('PDF ok, mais erreur sauvegarde : ' + res.error, 'error');
+    const res = await apiGet({ action: "saveFiche", token,
+      fiche: encodeURIComponent(JSON.stringify({ semaine: out.semaine, jours: out.days })) });
+    if (!res.ok) { showToast('PDF ok, mais erreur sauvegarde : ' + res.error, 'error'); return; }
+    if (out.guest) {
+      const resG = await apiGet({ action: "saveFiche", token,
+        nomCollab: encodeURIComponent(out.guest.nom),
+        fiche: encodeURIComponent(JSON.stringify({ semaine: out.semaine, jours: out.guest.days })) });
+      if (!resG.ok) { showToast('Ta fiche est ok, erreur fiche invité : ' + resG.error, 'error'); return; }
+    }
+    showToast('✓ PDF téléchargé(s) + fiche(s) enregistrée(s) !');
   } catch(e) { showToast('PDF ok, erreur réseau : ' + e.message, 'error'); }
 }
 
-function generateOnly() {
-  const days = getDayData();
-  const semaine = document.getElementById('semaine').value;
-  const conducteur = document.getElementById('conducteur').value;
-  const dateCollab = document.getElementById('date-sig').value;
-  const sigURL = sigHasData ? sigCanvas.toDataURL('image/png') : null;
-  const doc = buildPDF(days, semaine, conducteur, sigURL, dateCollab);
-  const safe = s => (s||'fiche').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_-]/g,'');
-  doc.save(`${safe(userNom)}_${safe(semaine).slice(0,20)}.pdf`);
+function generateOnly() { buildAllPDFs(); }
+
+// ══════════════════════════════════════════
+// BROUILLONS (synchro Google Sheets)
+// ══════════════════════════════════════════
+function collectDraft() {
+  return {
+    chantier: document.getElementById('chantier').value,
+    chef: document.getElementById('chef').value,
+    conducteur: document.getElementById('conducteur').value,
+    lundi: document.getElementById('lundi-picker').value,
+    semaine: document.getElementById('semaine').value,
+    dateSig: document.getElementById('date-sig').value,
+    days: Array.from(document.querySelectorAll('.day-card')).map(card => ({
+      date: card.querySelector('.d-date').value,
+      chefM: card.querySelector('.s-chef-m').value,
+      chefA: card.querySelector('.s-chef-a').value,
+      chM: card.querySelector('.s-chantier-m').value,
+      chA: card.querySelector('.s-chantier-a').value,
+      hm: card.querySelector('.s-hm').value,
+      ham: card.querySelector('.s-ham').value,
+      igd: card.querySelector('.d-igd').checked,
+      intemp: card.querySelector('.d-intemp').checked,
+      total: card.querySelector('.d-total').value,
+      manual: card.querySelector('.d-total').dataset.manual === '1',
+    })),
+    guestEnabled,
+    guestNom: document.getElementById('guest-nom').value,
+    guestDateSig: document.getElementById('guest-date-sig').value,
+    guestDays: Array.from(document.querySelectorAll('#guest-days .guest-slot[data-idx]')).map(row => ({
+      hm: row.querySelector('.g-hm').value,
+      ham: row.querySelector('.g-ham').value,
+    })),
+  };
+}
+
+function restoreDraft(d) {
+  document.getElementById('chantier').value = d.chantier || '';
+  document.getElementById('chef').value = d.chef || '';
+  document.getElementById('conducteur').value = d.conducteur || '';
+  document.getElementById('lundi-picker').value = d.lundi || '';
+  document.getElementById('semaine').value = d.semaine || '';
+  document.getElementById('date-sig').value = d.dateSig || '';
+  (d.days || []).forEach((day, i) => {
+    const card = document.querySelector(`.day-card[data-idx="${i}"]`);
+    if (!card) return;
+    card.querySelector('.d-date').value = day.date || '';
+    card.querySelector('.s-chef-m').value = day.chefM || '';
+    card.querySelector('.s-chef-a').value = day.chefA || '';
+    card.querySelector('.s-chantier-m').value = day.chM || '';
+    card.querySelector('.s-chantier-a').value = day.chA || '';
+    card.querySelector('.s-hm').value = day.hm || '';
+    card.querySelector('.s-ham').value = day.ham || '';
+    card.querySelector('.d-igd').checked = !!day.igd;
+    card.querySelector('.d-intemp').checked = !!day.intemp;
+    const totalInp = card.querySelector('.d-total');
+    if (day.manual) { totalInp.value = day.total || ''; totalInp.dataset.manual = '1'; }
+    else totalInp.dataset.manual = '';
+    refreshDayTotal(i);
+  });
+  if (d.guestEnabled && !guestEnabled) toggleGuest();
+  if (!d.guestEnabled && guestEnabled) toggleGuest();
+  document.getElementById('guest-nom').value = d.guestNom || '';
+  document.getElementById('guest-date-sig').value = d.guestDateSig || '';
+  (d.guestDays || []).forEach((g, i) => {
+    const row = document.querySelector(`#guest-days .guest-slot[data-idx="${i}"]`);
+    if (!row) return;
+    row.querySelector('.g-hm').value = g.hm || '';
+    row.querySelector('.g-ham').value = g.ham || '';
+    const t = parseRange(g.hm) + parseRange(g.ham);
+    row.querySelector('.g-total').value = fmtH(t);
+  });
+}
+
+async function saveDraft() {
+  const status = document.getElementById('draft-status');
+  status.textContent = 'Enregistrement du brouillon...';
+  try {
+    const res = await apiGet({ action: 'saveDraft', token,
+      data: encodeURIComponent(JSON.stringify(collectDraft())) });
+    if (res.ok) {
+      const now = new Date();
+      status.textContent = `Brouillon enregistré à ${String(now.getHours()).padStart(2,'0')}h${String(now.getMinutes()).padStart(2,'0')} — il se rechargera automatiquement à ta prochaine connexion, sur n'importe quel appareil.`;
+      showToast('✓ Brouillon enregistré');
+    } else { status.textContent = ''; showToast('Erreur brouillon : ' + res.error, 'error'); }
+  } catch(e) { status.textContent = ''; showToast('Erreur réseau : ' + e.message, 'error'); }
+}
+
+async function loadDraft() {
+  try {
+    const res = await apiGet({ action: 'getDraft', token });
+    if (res.ok && res.draft) {
+      restoreDraft(JSON.parse(res.draft));
+      const status = document.getElementById('draft-status');
+      const dt = res.updated ? new Date(res.updated) : null;
+      status.textContent = dt
+        ? `Brouillon rechargé (dernière sauvegarde : ${dt.toLocaleDateString('fr-FR')} ${String(dt.getHours()).padStart(2,'0')}h${String(dt.getMinutes()).padStart(2,'0')}).`
+        : 'Brouillon rechargé.';
+      showToast('✓ Brouillon de la semaine rechargé');
+    }
+  } catch(e) { /* pas de brouillon ou réseau : on continue normalement */ }
 }
 
 // ══════════════════════════════════════════
@@ -704,7 +924,6 @@ async function loadRecap() {
     const data = res.recap || [];
     document.getElementById('recap-stats').style.display = 'block';
 
-    // Stats globales
     const totalMins = data.reduce((s,r) => s+(r.totalMins||0), 0);
     const supMins = data.reduce((s,r) => s+(r.heuresSupMins||0), 0);
     const igd = data.reduce((s,r) => s+(r.igd||0), 0);
@@ -754,7 +973,7 @@ function apiGet(params) {
     script.src = `${API}?${qs}`;
     script.onerror = () => { done=true; reject(new Error('Erreur réseau')); };
     document.head.appendChild(script);
-    setTimeout(() => { if(!done){ done=true; reject(new Error('Timeout')); } }, 12000);
+    setTimeout(() => { if(!done){ done=true; reject(new Error('Timeout')); } }, 15000);
   });
 }
 
