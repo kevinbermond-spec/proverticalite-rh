@@ -201,9 +201,9 @@ input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
   <div class="card">
     <div class="card-title">⚙️ Infos chantier</div>
     <div class="grid3">
-      <div class="field"><label class="lbl">Chantier (défaut)</label><input type="text" id="chantier" placeholder="ex: Tour Vadon"></div>
-      <div class="field"><label class="lbl">Chef chantier (défaut)</label><input type="text" id="chef" placeholder="ex: Bermond Kevin"></div>
-      <div class="field"><label class="lbl">Conducteur de travaux</label><input type="text" id="conducteur" placeholder="ex: POISSON Franck"></div>
+      <div class="field"><label class="lbl">Chantier (défaut)</label><input type="text" id="chantier" placeholder="ex: CANOPÉE"></div>
+      <div class="field"><label class="lbl">Chef chantier (défaut)</label><input type="text" id="chef" placeholder="ex: Julien"></div>
+      <div class="field"><label class="lbl">Conducteur de travaux</label><input type="text" id="conducteur" placeholder="ex: GONCALVES Patrice"></div>
     </div>
     <div class="grid3">
       <div class="field"><label class="lbl">Lundi de la semaine</label><input type="date" id="lundi-picker" onchange="onLundiChange()"></div>
@@ -308,7 +308,7 @@ input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
 <div class="toast" id="toast"></div>
 
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbzZ-HFV-4-1MQahLJ49cKMflONLxPQNFEUe6mujFs0JBIkeL1S4fykELqNJe2NJDVG5/exec';
+const API = 'https://script.google.com/macros/s/AKfycbxwgtbsW3mnS_9pgbqsi_gMaCSGsSn3maUsu6XLn5ls29pB8fji8VUwfifpOQiM0o9wKg/exec';
 const BASE_MIN = 39 * 60;
 const JOURS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 const DEF_HM  = ['7h30 - 12h','7h30 - 12h','7h30 - 12h','7h30 - 12h','7h30 - 12h','',''];
@@ -664,7 +664,7 @@ function buildPDF(nom, days, semaine, conducteur, sigURL, dateCollab) {
   doc.setFont('helvetica','bold'); doc.text('Semaine :', ml+115, 28);
   doc.setFont('helvetica','normal'); doc.text(semaine||'', ml+132, 28); doc.line(ml+131,29,W-mr,29);
 
-  const cols=[18,14,40,24,24,24,18,10,16,14,16];
+  const cols=[23,18,52,31,31,31,23,13,20,18,21];
   const headers=['JOURS','DATE','NOM DU CHANTIER','Chef chantier','H. MATIN','H. APRÈS-MIDI','Intempérie','IGD','ABSENCE','CONGÉ','TOTAL'];
   let y=34; const rowH=10, headH=12;
 
