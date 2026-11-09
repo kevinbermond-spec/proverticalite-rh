@@ -161,6 +161,17 @@ input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
       <label class="lbl">Libellé de la semaine (auto, modifiable)</label>
       <input type="text" id="semaine" placeholder="Choisis d'abord le lundi ci-dessus">
     </div>
+    <div id="split-box" style="display:none;margin-top:.5rem;padding:.75rem 1rem;border:1.5px dashed var(--orange);border-radius:10px;background:var(--orange-light)">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;font-size:.88rem">
+        <input type="checkbox" id="split-chk" onchange="onSplitToggle()" style="width:18px;height:18px;accent-color:var(--orange)">
+        <span id="split-title">Semaine à cheval sur deux mois — couper en 2 fiches</span>
+      </label>
+      <div id="split-parts" style="display:none;gap:8px;flex-wrap:wrap;margin-top:.6rem">
+        <button class="btn btn-outline" id="split-btn-1" onclick="selectSplitPart(1)"></button>
+        <button class="btn btn-outline" id="split-btn-2" onclick="selectSplitPart(2)"></button>
+      </div>
+      <p class="draft-status" id="split-hint"></p>
+    </div>
     <div class="actions">
       <button class="btn btn-outline" onclick="applyDefaults()">↺ Appliquer par défaut</button>
     </div>
@@ -173,20 +184,9 @@ input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
       <span class="val" id="week-total-val">0h</span>
     </div>
   </div>
+  <div id="guests-container"></div>
   <div class="card" id="guest-toggle-card">
-    <button class="btn btn-blue" onclick="toggleGuest()" id="btn-guest-toggle">➕ Ajouter un collaborateur (intérimaire)</button>
-  </div>
-  <div class="card guest-card" id="guest-card" style="display:none">
-    <div class="card-title">👷 Collaborateur invité</div>
-    <p class="guest-hint">Dates, chantiers, chefs, IGD, congés et intempéries repris de ta fiche. Seuls les horaires sont à ajuster.</p>
-    <div class="grid2">
-      <div class="field"><label class="lbl">Nom - Prénom</label><input type="text" id="guest-nom" placeholder="ex: DUPONT Jean"></div>
-      <div class="field"><label class="lbl">Date de signature</label><input type="text" id="guest-date-sig" placeholder="ex: 22/05/2026"></div>
-    </div>
-    <div id="guest-days"></div>
-    <div class="field" style="margin-top:.75rem"><label class="lbl">Sa signature</label></div>
-    <div id="guest-sig-container"></div>
-    <div class="sig-actions"><button class="btn-clear" onclick="guestSig && guestSig.clear()">Effacer</button></div>
+    <button class="btn btn-blue" id="btn-add-guest" onclick="addGuest()">➕ Ajouter un collaborateur (intérimaire)</button>
   </div>
   <div class="card" id="sig-card">
     <div class="card-title">✍️ Ma signature</div>
@@ -196,8 +196,8 @@ input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
   </div>
   <div class="actions">
     <button class="btn btn-green" onclick="saveDraft()">💾 Enregistrer le brouillon</button>
-    <button class="btn btn-orange" onclick="generateAndSave()">⬇ Générer PDF + Enregistrer</button>
-    <button class="btn btn-dark" onclick="generateOnly()">⬇ PDF seulement</button>
+    <button class="btn btn-orange" id="btn-gen-save" onclick="generateAndSave()">⬇ Générer PDF + Enregistrer</button>
+    <button class="btn btn-dark" id="btn-gen-only" onclick="generateOnly()">⬇ PDF seulement</button>
   </div>
   <div class="draft-status" id="draft-status"></div>
 </div>
@@ -238,7 +238,7 @@ input[type=text]:focus,input[type=date]:focus{border-color:var(--orange);}
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbzuUwIyMeY9TI1NDey5UGeWY8UEzNQCMnqvG5rKLb1SPmp5DRnOZtqphWxeF9dGzgkyIw/exec';
+const API = 'https://script.google.com/macros/s/AKfycbzuy9R8unOGW5YMzhjitPGI7eAz4RdfkYQVuqrRw-zbCvw6oK0lLpfgLX6c6DB_1gF4/exec';
 const BASE_MIN = 39 * 60;
 const JOURS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 const DEF_HM  = ['7h30 - 12h','7h30 - 12h','7h30 - 12h','7h30 - 12h','7h30 - 12h','',''];
@@ -247,7 +247,7 @@ const LOGO_B64 = '';
 
 let token = localStorage.getItem('pv_token')||'';
 let userNom = localStorage.getItem('pv_nom')||'';
-let mySig=null, guestSig=null, guestEnabled=false;
+let mySig=null;let guests=[];let guestSeq=0;let splitOn=false,splitPart=1;
 
 async function doLogin(){
   const login=document.getElementById('login-user').value.trim();
@@ -280,8 +280,8 @@ function showApp(){
   document.getElementById('user-nom').textContent=userNom;
   buildDays();
   mySig=makeSigPad(document.getElementById('sig-wrap-container'));
-  buildGuestDays();
-  guestSig=makeSigPad(document.getElementById('guest-sig-container'));
+  guests=[];document.getElementById('guests-container').innerHTML='';
+  splitOn=false;document.getElementById('split-chk').checked=false;
   applyDefaults();
   showTab('generateur');
   loadDraft();
@@ -322,6 +322,7 @@ function computeDayMins(i){
 function refreshDayTotal(i){
   const card=document.querySelector(`.day-card[data-idx="${i}"]`);
   if(!card)return;
+  syncGuestDay(i);
   const inp=card.querySelector('.d-total');
   const badge=card.querySelector('.auto-badge');
   if(inp.dataset.manual==='1'){badge.textContent='manuel';refreshWeek();return;}
@@ -347,7 +348,7 @@ function buildDays(){
         <span class="day-name">${jour}</span>
         <input type="text" class="day-date-inp d-date" placeholder="JJ/MM">
         <div class="chk-wrap"><input type="checkbox" class="d-igd" id="igd${i}"><label for="igd${i}">IGD</label></div>
-        <div class="chk-wrap"><input type="checkbox" class="d-intemp" id="intemp${i}"><label for="intemp${i}">Intempérie</label></div>
+        <div class="chk-wrap"><label for="intemp${i}">Intempérie dès</label><input type="text" class="d-intemp day-date-inp" id="intemp${i}" placeholder="ex: 10h" style="width:66px"></div>
         <div class="chk-wrap"><input type="checkbox" class="d-conge" id="conge${i}"><label for="conge${i}">Congé</label></div>
         <div class="day-total-wrap">
           <label class="lbl">Total</label>
@@ -368,8 +369,8 @@ function buildDays(){
         <input type="text" class="s-ham" placeholder="13h - 16h30" value="${DEF_HAM[i]}">
       </div>`;
     c.appendChild(card);
-    card.querySelector('.s-hm').addEventListener('input',()=>refreshDayTotal(i));
-    card.querySelector('.s-ham').addEventListener('input',()=>refreshDayTotal(i));
+    card.querySelector('.s-hm').addEventListener('input',()=>{card.dataset.hEdited='1';refreshDayTotal(i);});
+    card.querySelector('.s-ham').addEventListener('input',()=>{card.dataset.hEdited='1';refreshDayTotal(i);});
     const totalInp=card.querySelector('.d-total');
     totalInp.addEventListener('input',()=>{
       totalInp.dataset.manual=totalInp.value.trim()?'1':'';
@@ -385,6 +386,7 @@ function toggleContinu(i){
   const slotAM=document.getElementById(`slot-am-${i}`);
   const isHidden=slotAM.style.display==='none';
   slotAM.style.display=isHidden?'':'none';
+  document.querySelector(`.day-card[data-idx="${i}"]`).dataset.hEdited='1';
   if(!isHidden){
     const card=document.querySelector(`.day-card[data-idx="${i}"]`);
     card.querySelector('.s-ham').value='';
@@ -416,18 +418,34 @@ function onLundiChange(){
   else if(anLun===anVen)libelle=`du ${jLun} ${moisLun} au ${jVen} ${moisVen} ${anVen}`;
   else libelle=`du ${jLun} ${moisLun} ${anLun} au ${jVen} ${moisVen} ${anVen}`;
   document.getElementById('semaine').value=libelle;
+  updateSplitBox();
 }
 
-// FIX: appliquer par défaut ne touche aux heures QUE si les champs sont vides
+// Horaires par défaut d'un jour : champs "défaut" du haut ; si laissés à la valeur standard,
+// on garde le profil standard (vendredi après-midi 13h - 15h30)
+function defaultHours(i){
+  if(i>=5)return{hm:'',ham:''};
+  const hm=document.getElementById('defHM').value.trim();
+  const ham=document.getElementById('defHAM').value.trim();
+  return{
+    hm:(!hm||hm===DEF_HM[0])?DEF_HM[i]:hm,
+    ham:(!ham||ham===DEF_HAM[0])?DEF_HAM[i]:ham,
+  };
+}
+// Chantier + chef : toujours réappliqués (lundi-vendredi).
+// Horaires : réappliqués sauf sur les jours dont tu as modifié les horaires toi-même.
 function applyDefaults(){
-  const chantier=document.getElementById('chantier').value;
-  const chef=document.getElementById('chef').value;
+  const chantier=document.getElementById('chantier').value.trim();
+  const chef=document.getElementById('chef').value.trim();
   document.querySelectorAll('.day-card').forEach((card,i)=>{
     if(i<5){
-      if(chantier&&!card.querySelector('.s-chantier-m').value)card.querySelector('.s-chantier-m').value=chantier;
-      if(chef&&!card.querySelector('.s-chef-m').value)card.querySelector('.s-chef-m').value=chef;
-      if(!card.querySelector('.s-hm').value)card.querySelector('.s-hm').value=DEF_HM[i];
-      if(!card.querySelector('.s-ham').value)card.querySelector('.s-ham').value=DEF_HAM[i];
+      if(chantier){card.querySelector('.s-chantier-m').value=chantier;card.querySelector('.s-chantier-a').value='';}
+      if(chef){card.querySelector('.s-chef-m').value=chef;card.querySelector('.s-chef-a').value=chef;}
+      if(card.dataset.hEdited!=='1'){
+        const h=defaultHours(i);
+        card.querySelector('.s-hm').value=h.hm;
+        card.querySelector('.s-ham').value=h.ham;
+      }
     }
     refreshDayTotal(parseInt(card.dataset.idx));
   });
@@ -449,46 +467,123 @@ function getDayData(){
       hm:card.querySelector('.s-hm').value,
       ham:card.querySelector('.s-ham').value,
       igd:card.querySelector('.d-igd').checked,
-      intemperie:card.querySelector('.d-intemp').checked,
+      intemperie:card.querySelector('.d-intemp').value.trim(),
       conge:card.querySelector('.d-conge').checked,
       total:inp.value,totalMins,
     };
   });
 }
 
-// ── COLLABORATEUR INVITÉ ──
-function toggleGuest(){
-  guestEnabled=!guestEnabled;
-  document.getElementById('guest-card').style.display=guestEnabled?'block':'none';
-  document.getElementById('btn-guest-toggle').textContent=guestEnabled?'➖ Retirer le collaborateur':'➕ Ajouter un collaborateur (intérimaire)';
-  if(guestEnabled)syncGuestHoursFromMine();
+// ── COLLABORATEURS INVITÉS (autant que nécessaire) ──
+// Horaires invité = les tiens, +30 min au début du matin et -30 min à la fin de journée (1h de moins/jour)
+function fmtClock(mins){const h=Math.floor(mins/60),m=mins%60;return m===0?`${h}h`:`${h}h${String(m).padStart(2,'0')}`;}
+function parseClockRange(str){
+  if(!str)return null;
+  const m=str.replace(/\s/g,'').toLowerCase().match(/^(\d{1,2})(?:h(\d{0,2}))?-(\d{1,2})(?:h(\d{0,2}))?$/);
+  if(!m)return null;
+  return{s:parseInt(m[1])*60+(parseInt(m[2])||0),e:parseInt(m[3])*60+(parseInt(m[4])||0)};
 }
-function buildGuestDays(){
-  const c=document.getElementById('guest-days');c.innerHTML='';
+function shiftRange(str,dStart,dEnd){
+  const r=parseClockRange(str);if(!r)return str||'';
+  const s=r.s+dStart,e=r.e+dEnd;
+  if(e<=s)return str;
+  return `${fmtClock(s)} - ${fmtClock(e)}`;
+}
+function deriveGuestHours(hm,ham){
+  if(ham&&ham.trim())return{hm:shiftRange(hm,30,0),ham:shiftRange(ham,0,-30)};
+  return{hm:shiftRange(hm,30,-30),ham:''}; // journée continue : début +30, fin -30
+}
+function syncGuestDay(i){
+  if(!guests.length)return;
+  const card=document.querySelector(`.day-card[data-idx="${i}"]`);if(!card)return;
+  const d=deriveGuestHours(card.querySelector('.s-hm').value,card.querySelector('.s-ham').value);
+  guests.forEach(g=>{
+    const row=g.card.querySelector(`.guest-slot[data-idx="${i}"]`);if(!row)return;
+    if(row.dataset.edited==='1')return; // horaires modifiés à la main : on n'y touche pas
+    row.querySelector('.g-hm').value=d.hm;row.querySelector('.g-ham').value=d.ham;rowTotal(row);
+  });
+}
+function syncAllGuests(){for(let i=0;i<7;i++)syncGuestDay(i);}
+function recalcGuest(id){
+  const g=guests.find(x=>x.id===id);if(!g)return;
+  g.card.querySelectorAll('.guest-slot[data-idx]').forEach(r=>{r.dataset.edited='';});
+  syncAllGuests();
+}
+function rowTotal(row){
+  const t=parseRange(row.querySelector('.g-hm').value)+parseRange(row.querySelector('.g-ham').value);
+  row.querySelector('.g-total').value=fmtH(t);
+}
+function addGuest(data){
+  data=data||{};
+  const id=++guestSeq;
+  const card=document.createElement('div');card.className='card guest-card';card.dataset.gid=id;
+  card.innerHTML=`
+    <div class="card-title" style="justify-content:space-between">
+      <span>👷 Collaborateur invité <span class="g-num"></span></span>
+      <button class="btn-clear" onclick="removeGuest(${id})">✕ Retirer</button>
+    </div>
+    <p class="guest-hint">Dates, chantiers, chefs, IGD, congés et intempéries repris de ta fiche. Ses horaires se calculent depuis les tiens (+30 min le matin, −30 min le soir) : modifie-les si besoin.</p>
+    <button class="btn-clear" style="margin-bottom:.75rem" onclick="recalcGuest(${id})">↺ Recalculer ses horaires depuis les miens</button>
+    <div class="grid2">
+      <div class="field"><label class="lbl">Nom - Prénom</label><input type="text" class="g-nom" placeholder="ex: DUPONT Jean"></div>
+      <div class="field"><label class="lbl">Date de signature</label><input type="text" class="g-date-sig" placeholder="ex: 22/05/2026"></div>
+    </div>
+    <div class="g-days"></div>
+    <div class="field" style="margin-top:.75rem"><label class="lbl">Sa signature</label></div>
+    <div class="g-sig"></div>
+    <div class="sig-actions"><button class="btn-clear g-sig-clear">Effacer</button></div>`;
+  document.getElementById('guests-container').appendChild(card);
+
+  const box=card.querySelector('.g-days');
   const head=document.createElement('div');head.className='guest-slot';
-  head.innerHTML=`<span class="slot-lbl">Jour</span><span class="slot-lbl">H. matin</span><span class="slot-lbl">H. après-midi</span><span class="slot-lbl">Total</span>`;
-  c.appendChild(head);
+  head.innerHTML='<span class="slot-lbl">Jour</span><span class="slot-lbl">H. matin</span><span class="slot-lbl">H. après-midi</span><span class="slot-lbl">Total</span>';
+  box.appendChild(head);
   JOURS.forEach((jour,i)=>{
     const row=document.createElement('div');row.className='guest-slot';row.dataset.idx=i;
-    row.innerHTML=`<span class="g-day">${jour}</span><input type="text" class="g-hm" placeholder="${DEF_HM[i]||'—'}"><input type="text" class="g-ham" placeholder="${DEF_HAM[i]||'—'}"><input type="text" class="g-total" readonly tabindex="-1" value="0h">`;
-    c.appendChild(row);
-    const upd=()=>{const t=parseRange(row.querySelector('.g-hm').value)+parseRange(row.querySelector('.g-ham').value);row.querySelector('.g-total').value=fmtH(t);};
-    row.querySelector('.g-hm').addEventListener('input',upd);
-    row.querySelector('.g-ham').addEventListener('input',upd);
+    row.innerHTML=`<span class="g-day">${jour}</span><input type="text" class="g-hm" placeholder="${deriveGuestHours(DEF_HM[i],DEF_HAM[i]).hm||'—'}"><input type="text" class="g-ham" placeholder="${deriveGuestHours(DEF_HM[i],DEF_HAM[i]).ham||'—'}"><input type="text" class="g-total" readonly tabindex="-1" value="0h">`;
+    box.appendChild(row);
+    row.querySelector('.g-hm').addEventListener('input',()=>{row.dataset.edited='1';rowTotal(row);});
+    row.querySelector('.g-ham').addEventListener('input',()=>{row.dataset.edited='1';rowTotal(row);});
   });
+
+  const sig=makeSigPad(card.querySelector('.g-sig'));
+  card.querySelector('.g-sig-clear').addEventListener('click',()=>sig.clear());
+  guests.push({id,card,sig});
+
+  card.querySelector('.g-nom').value=data.nom||'';
+  card.querySelector('.g-date-sig').value=data.dateSig||'';
+  if(data.days&&data.days.length){
+    data.days.forEach((g,i)=>{
+      const row=box.querySelector(`.guest-slot[data-idx="${i}"]`);if(!row)return;
+      row.querySelector('.g-hm').value=g.hm||'';row.querySelector('.g-ham').value=g.ham||'';rowTotal(row);
+      // si ses horaires diffèrent du calcul automatique, c'est qu'ils ont été modifiés à la main
+      const mine=document.querySelector(`.day-card[data-idx="${i}"]`);
+      if(mine){const d=deriveGuestHours(mine.querySelector('.s-hm').value,mine.querySelector('.s-ham').value);
+        row.dataset.edited=((g.hm||'')!==d.hm||(g.ham||'')!==d.ham)?'1':'';}
+    });
+  }else{
+    syncAllGuests(); // pré-remplissage automatique depuis MES horaires
+  }
+  renumberGuests();
+  return card;
 }
-function syncGuestHoursFromMine(){
-  document.querySelectorAll('#guest-days .guest-slot[data-idx]').forEach(row=>{
-    const i=parseInt(row.dataset.idx);
-    const card=document.querySelector(`.day-card[data-idx="${i}"]`);if(!card)return;
-    if(!row.querySelector('.g-hm').value)row.querySelector('.g-hm').value=card.querySelector('.s-hm').value;
-    if(!row.querySelector('.g-ham').value)row.querySelector('.g-ham').value=card.querySelector('.s-ham').value;
-    const t=parseRange(row.querySelector('.g-hm').value)+parseRange(row.querySelector('.g-ham').value);
-    row.querySelector('.g-total').value=fmtH(t);
-  });
+function removeGuest(id){
+  const idx=guests.findIndex(g=>g.id===id);if(idx<0)return;
+  guests[idx].card.remove();guests.splice(idx,1);renumberGuests();
 }
-function getGuestDayData(myDays){
-  return Array.from(document.querySelectorAll('#guest-days .guest-slot[data-idx]')).map(row=>{
+function renumberGuests(){
+  guests.forEach((g,i)=>{g.card.querySelector('.g-num').textContent=guests.length>1?('#'+(i+1)):'';});
+  document.getElementById('btn-add-guest').textContent=guests.length?'➕ Ajouter un autre collaborateur':'➕ Ajouter un collaborateur (intérimaire)';
+}
+function collectGuest(g){
+  return{
+    nom:g.card.querySelector('.g-nom').value,
+    dateSig:g.card.querySelector('.g-date-sig').value,
+    days:Array.from(g.card.querySelectorAll('.guest-slot[data-idx]')).map(r=>({hm:r.querySelector('.g-hm').value,ham:r.querySelector('.g-ham').value})),
+  };
+}
+function getGuestDayData(card,myDays){
+  return Array.from(card.querySelectorAll('.guest-slot[data-idx]')).map(row=>{
     const i=parseInt(row.dataset.idx);
     const hm=row.querySelector('.g-hm').value;
     const ham=row.querySelector('.g-ham').value;
@@ -558,7 +653,7 @@ function buildPDF(nom,days,semaine,conducteur,sigURL,dateCollab){
   doc.setFont('helvetica','normal');doc.text(semaine||'',ml+132,26);doc.line(ml+131,27,W-mr,27);
 
   const cols=[25,20,62,36,35,35,21,13,13,21];
-  const headers=['JOURS','DATE','NOM DU CHANTIER','Chef chantier','H. MATIN','H. APRÈS-MIDI','Intempérie','IGD','CONGÉ','TOTAL'];
+  const headers=['JOURS','DATE','NOM DU CHANTIER','Chef chantier','H. MATIN','H. APRÈS-MIDI','Intempérie (début)','IGD','CONGÉ','TOTAL'];
   let y=30;const rowH=10,headH=11;
 
   doc.setFillColor(204,204,204);doc.rect(ml,y,cw,headH,'F');doc.setDrawColor(0);doc.setLineWidth(0.3);
@@ -576,7 +671,7 @@ function buildPDF(nom,days,semaine,conducteur,sigURL,dateCollab){
   JOURS.forEach((jour,i)=>{
     const d=days[i]||{};x=ml;
     doc.setFillColor(255,255,255);doc.rect(ml,y,cw,rowH,'F');
-    const vals=[jour,d.date||'',d.chantier||'',d.chef||'',d.hm||'',d.ham||'',d.intemperie?'X':'',d.igd?'X':'',d.conge?'X':'',d.total||''];
+    const vals=[jour,d.date||'',d.chantier||'',d.chef||'',d.hm||'',d.ham||'',d.intemperie?(d.intemperie===true?'X':d.intemperie):'',d.igd?'X':'',d.conge?'X':'',d.total||''];
     vals.forEach((v,ci)=>{
       doc.rect(x,y,cols[ci],rowH);doc.setFont('helvetica',ci===0?'bold':'normal');
       let fs=8;if((ci===2||ci===3)&&String(v).length>20)fs=6;else if((ci===2||ci===3)&&String(v).length>14)fs=7;
@@ -620,38 +715,119 @@ function buildPDF(nom,days,semaine,conducteur,sigURL,dateCollab){
 
 function safeName(s){return(s||'fiche').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_-]/g,'');}
 
-function buildAllPDFs(){
-  const days=getDayData();
-  const semaine=document.getElementById('semaine').value;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
+// ── COUPURE DE FIN DE MOIS ──
+function getWeekInfo(){
+  const val=document.getElementById('lundi-picker').value;if(!val)return null;
+  const [y,m,d]=val.split('-').map(Number);
+  const lundi=new Date(y,m-1,d);
+  const days=[];
+  for(let i=0;i<7;i++){const dt=new Date(lundi);dt.setDate(lundi.getDate()+i);days.push(dt);}
+  const k=days.findIndex(dt=>dt.getMonth()!==lundi.getMonth()); // 1er jour du mois suivant (-1 = pas de chevauchement)
+  return{lundi,days,k};
+}
+function splitRange(info,part){return part===1?[0,info.k-1]:[info.k,6];}
+function rangeLabel(info,a,b){
+  const e=(a<=4)?Math.min(b,4):b; // le libellé suit la convention lundi→vendredi
+  const d1=info.days[a],d2=info.days[e];
+  if(a===e)return `le ${d1.getDate()} ${MOIS_NOMS[d1.getMonth()]} ${d1.getFullYear()}`;
+  return `du ${d1.getDate()} au ${d2.getDate()} ${MOIS_NOMS[d2.getMonth()]} ${d2.getFullYear()}`;
+}
+function defaultSplitPart(info){
+  const end1=info.days[splitRange(info,1)[1]];
+  const t=new Date();t.setHours(0,0,0,0);
+  return t<=end1?1:2;
+}
+function maskDays(arr,a,b){
+  return arr.map((d,i)=>(i>=a&&i<=b)?d:{date:'',chantier:'',chef:'',hm:'',ham:'',igd:false,intemperie:'',conge:false,total:'',totalMins:0});
+}
+function updateSplitBox(){
+  const info=getWeekInfo();
+  const box=document.getElementById('split-box');
+  if(!info||info.k<0){box.style.display='none';document.getElementById('split-chk').checked=false;splitOn=false;applySplitUI();return;}
+  box.style.display='block';
+  document.getElementById('split-title').textContent=`Semaine à cheval sur ${MOIS_NOMS[info.days[0].getMonth()]} / ${MOIS_NOMS[info.days[6].getMonth()]} — couper en 2 fiches`;
+  splitOn=document.getElementById('split-chk').checked;
+  applySplitUI();
+}
+function onSplitToggle(){
+  splitOn=document.getElementById('split-chk').checked;
+  const info=getWeekInfo();
+  if(splitOn&&info&&info.k>=0)splitPart=defaultSplitPart(info);
+  applySplitUI();
+}
+function selectSplitPart(p){splitPart=p;applySplitUI();}
+function applySplitUI(){
+  const info=getWeekInfo();
+  const on=splitOn&&info&&info.k>=0;
+  const gs=document.getElementById('btn-gen-save'),go=document.getElementById('btn-gen-only');
+  document.getElementById('split-parts').style.display=on?'flex':'none';
+  if(!on){
+    gs.textContent='⬇ Générer PDF + Enregistrer';go.textContent='⬇ PDF seulement';
+    document.getElementById('split-hint').textContent='';return;
+  }
+  [1,2].forEach(p=>{
+    const r=splitRange(info,p);
+    const b=document.getElementById('split-btn-'+p);
+    b.textContent=`Fiche ${p} · ${rangeLabel(info,r[0],r[1]).replace(/ \d{4}$/,'')}`;
+    b.className='btn '+(splitPart===p?'btn-orange':'btn-outline');
+  });
+  gs.textContent=`⬇ Fiche ${splitPart} : PDF + Enregistrer`;
+  go.textContent=`⬇ Fiche ${splitPart} : PDF seulement`;
+  document.getElementById('split-hint').textContent=splitPart===1
+    ?'Tu génères la fiche 1 maintenant : les jours suivants restent dans ton brouillon pour la fiche 2.'
+    :'Fiche 2 : le brouillon sera vidé après l\'enregistrement (pense à avoir généré la fiche 1).';
+}
+
+async function buildAllPDFs(){
+  const info=getWeekInfo();
+  const on=splitOn&&info&&info.k>=0;
+  let a=0,b=6,semaine=document.getElementById('semaine').value;
+  if(on){const r=splitRange(info,splitPart);a=r[0];b=r[1];semaine=rangeLabel(info,a,b);}
   const conducteur=document.getElementById('conducteur').value;
   if(!semaine){showToast('Renseigne le libellé de la semaine !','error');return null;}
+  const list=[];
+  for(const g of guests){
+    const nom=g.card.querySelector('.g-nom').value.trim();
+    if(!nom){showToast('Renseigne le nom de chaque collaborateur invité !','error');return null;}
+    list.push({g,nom});
+  }
+  const allDays=getDayData();
+  const days=on?maskDays(allDays,a,b):allDays;
   const myDoc=buildPDF(userNom,days,semaine,conducteur,mySig.hasData()?mySig.dataURL():null,document.getElementById('date-sig').value);
   myDoc.save(`${safeName(userNom)}_${safeName(semaine).slice(0,20)}.pdf`);
-  let guest=null;
-  if(guestEnabled){
-    const guestNom=document.getElementById('guest-nom').value.trim();
-    if(!guestNom){showToast('Renseigne le nom du collaborateur invité !','error');return null;}
-    const guestDays=getGuestDayData(days);
-    const gDoc=buildPDF(guestNom,guestDays,semaine,conducteur,guestSig.hasData()?guestSig.dataURL():null,document.getElementById('guest-date-sig').value);
-    gDoc.save(`${safeName(guestNom)}_${safeName(semaine).slice(0,20)}.pdf`);
-    guest={nom:guestNom,days:guestDays};
+  const savedGuests=[];
+  for(const {g,nom} of list){
+    await sleep(400);
+    let gDays=getGuestDayData(g.card,allDays);
+    if(on)gDays=maskDays(gDays,a,b);
+    const gDoc=buildPDF(nom,gDays,semaine,conducteur,g.sig.hasData()?g.sig.dataURL():null,g.card.querySelector('.g-date-sig').value);
+    gDoc.save(`${safeName(nom)}_${safeName(semaine).slice(0,20)}.pdf`);
+    savedGuests.push({nom,days:gDays});
   }
-  return{days,semaine,guest};
+  return{days,semaine,guests:savedGuests,from:a,to:b,weekKey:info?iso(info.lundi):'',split:!!on,part:splitPart};
 }
 
 async function generateAndSave(){
-  const out=buildAllPDFs();if(!out)return;
+  const out=await buildAllPDFs();if(!out)return;
   showToast('Enregistrement...','info');
+  const meta={from:out.from,to:out.to,weekKey:out.weekKey};
   try{
-    const fiche={semaine:out.semaine,jours:out.days};
-    const res=await apiGet({action:'saveFiche',token,fiche:encodeURIComponent(JSON.stringify(fiche))});
+    const res=await apiGet({action:'saveFiche',token,fiche:encodeURIComponent(JSON.stringify({semaine:out.semaine,jours:out.days,...meta}))});
     if(!res.ok){showToast('PDF ok, erreur sauvegarde : '+res.error,'error');return;}
-    if(out.guest){
-      const resG=await apiGet({action:'saveFiche',token,nomCollab:encodeURIComponent(out.guest.nom),fiche:encodeURIComponent(JSON.stringify({semaine:out.semaine,jours:out.guest.days}))});
-      if(!resG.ok){showToast('Ta fiche ok, erreur fiche invité : '+resG.error,'error');return;}
+    for(const g of out.guests){
+      const resG=await apiGet({action:'saveFiche',token,nomCollab:encodeURIComponent(g.nom),fiche:encodeURIComponent(JSON.stringify({semaine:out.semaine,jours:g.days,...meta}))});
+      if(!resG.ok){showToast('Ta fiche ok, erreur fiche de '+g.nom+' : '+resG.error,'error');return;}
     }
-    showToast('✓ PDF téléchargé(s) + fiche(s) enregistrée(s) !');
-    await apiGet({action:'deleteDraft',token});
+    if(out.split&&out.part===1){
+      await saveDraft(true); // les jours suivants restent dans le brouillon
+      showToast('✓ Fiche 1 téléchargée et enregistrée — le reste de la semaine est gardé en brouillon');
+    }else{
+      showToast('✓ PDF téléchargé(s) + fiche(s) enregistrée(s) !');
+      await apiGet({action:'deleteDraft',token});
+    }
   }catch(e){showToast('PDF ok, erreur réseau : '+e.message,'error');}
 }
 function generateOnly(){buildAllPDFs();}
@@ -660,6 +836,8 @@ function generateOnly(){buildAllPDFs();}
 function collectDraft(){
   return{
     chantier:document.getElementById('chantier').value,
+    defHM:document.getElementById('defHM').value,
+    defHAM:document.getElementById('defHAM').value,
     chef:document.getElementById('chef').value,
     conducteur:document.getElementById('conducteur').value,
     lundi:document.getElementById('lundi-picker').value,
@@ -674,20 +852,20 @@ function collectDraft(){
       hm:card.querySelector('.s-hm').value,
       ham:card.querySelector('.s-ham').value,
       igd:card.querySelector('.d-igd').checked,
-      intemp:card.querySelector('.d-intemp').checked,
+      intemp:card.querySelector('.d-intemp').value,
       conge:card.querySelector('.d-conge').checked,
       total:card.querySelector('.d-total').value,
       manual:card.querySelector('.d-total').dataset.manual==='1',
       continuMode:document.getElementById(`slot-am-${card.dataset.idx}`)?.style.display==='none',
     })),
-    guestEnabled,
-    guestNom:document.getElementById('guest-nom').value,
-    guestDateSig:document.getElementById('guest-date-sig').value,
-    guestDays:Array.from(document.querySelectorAll('#guest-days .guest-slot[data-idx]')).map(row=>({hm:row.querySelector('.g-hm').value,ham:row.querySelector('.g-ham').value})),
+    guests:guests.map(collectGuest),
+    splitOn,
   };
 }
 function restoreDraft(d){
   document.getElementById('chantier').value=d.chantier||'';
+  if(d.defHM)document.getElementById('defHM').value=d.defHM;
+  if(d.defHAM)document.getElementById('defHAM').value=d.defHAM;
   document.getElementById('chef').value=d.chef||'';
   document.getElementById('conducteur').value=d.conducteur||'';
   document.getElementById('lundi-picker').value=d.lundi||'';
@@ -703,28 +881,28 @@ function restoreDraft(d){
     card.querySelector('.s-hm').value=day.hm||'';
     card.querySelector('.s-ham').value=day.ham||'';
     card.querySelector('.d-igd').checked=!!day.igd;
-    card.querySelector('.d-intemp').checked=!!day.intemp;
+    card.querySelector('.d-intemp').value=(typeof day.intemp==='string')?day.intemp:'';
     card.querySelector('.d-conge').checked=!!day.conge;
     const totalInp=card.querySelector('.d-total');
     if(day.manual){totalInp.value=day.total||'';totalInp.dataset.manual='1';}else totalInp.dataset.manual='';
     if(day.continuMode){const slot=document.getElementById(`slot-am-${i}`);if(slot)slot.style.display='none';}
+    const dh=defaultHours(i);
+    card.dataset.hEdited=(day.continuMode||(day.hm||'')!==dh.hm||(day.ham||'')!==dh.ham)?'1':'';
     refreshDayTotal(i);
   });
-  if(d.guestEnabled&&!guestEnabled)toggleGuest();
-  if(!d.guestEnabled&&guestEnabled)toggleGuest();
-  document.getElementById('guest-nom').value=d.guestNom||'';
-  document.getElementById('guest-date-sig').value=d.guestDateSig||'';
-  (d.guestDays||[]).forEach((g,i)=>{
-    const row=document.querySelector(`#guest-days .guest-slot[data-idx="${i}"]`);if(!row)return;
-    row.querySelector('.g-hm').value=g.hm||'';row.querySelector('.g-ham').value=g.ham||'';
-    const t=parseRange(g.hm)+parseRange(g.ham);row.querySelector('.g-total').value=fmtH(t);
-  });
+  guests.forEach(g=>g.card.remove());guests=[];
+  let list=d.guests;
+  if(!list&&d.guestEnabled)list=[{nom:d.guestNom,dateSig:d.guestDateSig,days:d.guestDays}]; // anciens brouillons
+  (list||[]).forEach(g=>addGuest(g));
+  renumberGuests();
+  updateSplitBox();
+  { const inf=getWeekInfo(); if(d.splitOn&&inf&&inf.k>=0){document.getElementById('split-chk').checked=true;onSplitToggle();} }
 }
-async function saveDraft(){
+async function saveDraft(silent){
   const status=document.getElementById('draft-status');status.textContent='Enregistrement du brouillon...';
   try{
     const res=await apiGet({action:'saveDraft',token,data:encodeURIComponent(JSON.stringify(collectDraft()))});
-    if(res.ok){const now=new Date();status.textContent=`Brouillon enregistré à ${String(now.getHours()).padStart(2,'0')}h${String(now.getMinutes()).padStart(2,'0')} — rechargement auto à la prochaine connexion.`;showToast('✓ Brouillon enregistré');}
+    if(res.ok){const now=new Date();status.textContent=`Brouillon enregistré à ${String(now.getHours()).padStart(2,'0')}h${String(now.getMinutes()).padStart(2,'0')} — rechargement auto à la prochaine connexion.`;if(!silent)showToast('✓ Brouillon enregistré');}
     else{status.textContent='';showToast('Erreur brouillon : '+res.error,'error');}
   }catch(e){status.textContent='';showToast('Erreur réseau : '+e.message,'error');}
 }
@@ -752,7 +930,7 @@ async function loadAgenda(){
     [...res.fiches].reverse().forEach(f=>{
       const item=document.createElement('div');item.className='fiche-item';
       const totalMins=f.totalMins||0;
-      const supMins=Math.max(0,totalMins-BASE_MIN);
+      const supMins=(f.supMins!=null)?f.supMins:Math.max(0,totalMins-BASE_MIN);
       item.innerHTML=`
         <div style="flex:1">
           <div class="fiche-week">${f.semaine||'—'}</div>
